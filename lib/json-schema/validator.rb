@@ -458,10 +458,14 @@ module JSON
         temp_uri = current_schema.uri.clone
         # Check for absolute path
         path = current_schema.schema['$ref'].split("#")[0]
-        if path[0,1] == "/"
-          temp_uri.path = Pathname.new(path).cleanpath.to_s
+        unless path # referencing self
+          temp_uri.path = current_schema.uri.path
         else
-          temp_uri.path = (Pathname.new(current_schema.uri.path).parent + path).cleanpath.to_s
+          if path[0,1] == "/"
+            temp_uri.path = Pathname.new(path).cleanpath.to_s
+          else
+            temp_uri.path = (Pathname.new(current_schema.uri.path).parent + path).cleanpath.to_s
+          end
         end
         temp_uri.fragment = current_schema.schema['$ref'].split("#")[1]
       end
@@ -510,6 +514,7 @@ module JSON
         uri = parent_schema.uri.clone
         # Check for absolute path
         path = ref.split("#")[0]
+        return unless path # referencing self
         if path[0,1] == '/'
           uri.path = Pathname.new(path).cleanpath.to_s
         else
