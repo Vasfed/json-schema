@@ -5,17 +5,17 @@ require 'bigdecimal'
 require 'digest/sha1'
 
 module JSON
-  
+
   class ValidationError < Exception
     attr_reader :fragments, :schema
-    
+
     def initialize(message, fragments, schema)
       @fragments = fragments
       @schema = schema
       super(message)
     end
   end
-  
+
   class SchemaError < Exception
   end
 
@@ -46,19 +46,20 @@ module JSON
       "items",
       "additionalItems",
       "dependencies",
+      "valueDependencies",
       "extends",
       "$ref"
     ]
-    
-    
+
+
     def initialize(schema_data, data, opts={})
       @options = @@default_opts.clone.merge(opts)
       @base_schema = initialize_schema(schema_data)
-      @data = initialize_data(data)    
+      @data = initialize_data(data)
       build_schemas(@base_schema)
-    end  
-    
-    
+    end
+
+
     # Run a simple true/false validation of data against a schema
     def validate()
       begin
@@ -70,11 +71,11 @@ module JSON
         return false
       end
     end
-    
-    
-    # Validate data against a schema, returning nil if the data is valid. If the data is invalid, 
+
+
+    # Validate data against a schema, returning nil if the data is valid. If the data is invalid,
     # a ValidationError will be raised with links to the specific location that the first error
-    # occurred during validation 
+    # occurred during validation
     def validate2()
       begin
         validate_schema(@base_schema, @data, [])
@@ -85,37 +86,37 @@ module JSON
       end
       nil
     end
-    
-    
+
+
     # Validate the current schema
     def validate_schema(current_schema, data, fragments)
-          
+
       ValidationMethods.each do |method|
         if !current_schema.schema[method].nil?
           self.send(("validate_" + method.sub('$','')).to_sym, current_schema, data, fragments)
         end
       end
-      
+
       data
     end
-    
-    
+
+
     # Validate the type
     def validate_type(current_schema, data, fragments, disallow=false)
       union = true
-      
+
       if disallow
         types = current_schema.schema['disallow']
       else
         types = current_schema.schema['type']
       end
-      
+
       if !types.is_a?(Array)
         types = [types]
         union = false
       end
       valid = false
-      
+
       types.each do |type|
         if type.is_a?(String)
           case type
@@ -151,7 +152,7 @@ module JSON
 
         break if valid
       end
-      
+
       if (disallow)
         if valid
           message = "The property '#{build_fragment(fragments)}' matched one or more of the following types:"
@@ -166,14 +167,14 @@ module JSON
         raise ValidationError.new(message, fragments, current_schema)
       end
     end
-    
-    
+
+
     # Validate the disallowed types
     def validate_disallow(current_schema, data, fragments)
       validate_type(current_schema, data, fragments, true)
     end
-    
-    
+
+
     # Validate the minimum value of a number
     def validate_minimum(current_schema, data, fragments)
       if data.is_a?(Numeric)
@@ -184,8 +185,8 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate the maximum value of a number
     def validate_maximum(current_schema, data, fragments)
       if data.is_a?(Numeric)
@@ -196,8 +197,8 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate the minimum number of items in an array
     def validate_minItems(current_schema, data, fragments)
       if data.is_a?(Array) && (data.compact.size < current_schema.schema['minItems'])
@@ -205,8 +206,8 @@ module JSON
         raise ValidationError.new(message, fragments, current_schema)
       end
     end
-    
-    
+
+
     # Validate the maximum number of items in an array
     def validate_maxItems(current_schema, data, fragments)
       if data.is_a?(Array) && (data.compact.size > current_schema.schema['maxItems'])
@@ -214,8 +215,8 @@ module JSON
         raise ValidationError.new(message, fragments, current_schema)
       end
     end
-    
-    
+
+
     # Validate the uniqueness of elements in an array
     def validate_uniqueItems(current_schema, data, fragments)
       if data.is_a?(Array)
@@ -227,8 +228,8 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate a string matches a regex pattern
     def validate_pattern(current_schema, data, fragments)
       if data.is_a?(String)
@@ -239,8 +240,8 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate a string is at least of a certain length
     def validate_minLength(current_schema, data, fragments)
       if data.is_a?(String)
@@ -250,8 +251,8 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate a string is at maximum of a certain length
     def validate_maxLength(current_schema, data, fragments)
       if data.is_a?(String)
@@ -261,12 +262,12 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate a numeric is divisible by another numeric
     def validate_divisibleBy(current_schema, data, fragments)
       if data.is_a?(Numeric)
-        if current_schema.schema['divisibleBy'] == 0 || 
+        if current_schema.schema['divisibleBy'] == 0 ||
            current_schema.schema['divisibleBy'] == 0.0 ||
            (BigDecimal.new(data.to_s) % BigDecimal.new(current_schema.schema['divisibleBy'].to_s)).to_f != 0
            message = "The property '#{build_fragment(fragments)}' was not divisible by #{current_schema.schema['divisibleBy']}"
@@ -274,8 +275,8 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate an item matches at least one of an array of values
     def validate_enum(current_schema, data, fragments)
       if !current_schema.schema['enum'].include?(data)
@@ -295,8 +296,8 @@ module JSON
         raise ValidationError.new(message, fragments, current_schema)
       end
     end
-    
-    
+
+
     # Validate a set of properties of an object
     def validate_properties(current_schema, data, fragments)
       if data.is_a?(Hash)
@@ -305,7 +306,7 @@ module JSON
             message = "The property '#{build_fragment(fragments)}' did not contain a required property of '#{property}'"
             raise ValidationError.new(message, fragments, current_schema)
           end
-          
+
           if data.has_key?(property)
             schema = JSON::Schema.new(property_schema,current_schema.uri)
             fragments << property
@@ -315,14 +316,14 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate properties of an object against a schema when the property name matches a specific regex
     def validate_patternProperties(current_schema, data, fragments)
       if data.is_a?(Hash)
         current_schema.schema['patternProperties'].each do |property,property_schema|
           r = Regexp.new(property)
-          
+
           # Check each key in the data hash to see if it matches the regex
           data.each do |key,value|
             if r.match(key)
@@ -335,17 +336,17 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate properties of an object that are not defined in the schema at least validate against a set of rules
     def validate_additionalProperties(current_schema, data, fragments)
       if data.is_a?(Hash)
         extra_properties = data.keys
-        
+
         if current_schema.schema['properties']
           extra_properties = extra_properties - current_schema.schema['properties'].keys
         end
-        
+
         if current_schema.schema['patternProperties']
           current_schema.schema['patternProperties'].each_key do |key|
             r = Regexp.new(key)
@@ -357,7 +358,7 @@ module JSON
             end
           end
         end
-        
+
         if current_schema.schema['additionalProperties'] == false && !extra_properties.empty?
           message = "The property '#{build_fragment(fragments)}' contains additional properties outside of the schema when none are allowed"
           raise ValidationError.new(message, fragments, current_schema)
@@ -371,8 +372,8 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate items in an array match a schema or a set of schemas
     def validate_items(current_schema, data, fragments)
       if data.is_a?(Array)
@@ -393,8 +394,8 @@ module JSON
          end
       end
     end
-    
-    
+
+
     # Validate items in an array that are not part of the schema at least match a set of rules
     def validate_additionalItems(current_schema, data, fragments)
       if data.is_a?(Array) && current_schema.schema['items'].is_a?(Array)
@@ -413,8 +414,8 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Validate the dependencies of a property
     def validate_dependencies(current_schema, data, fragments)
       if data.is_a?(Hash)
@@ -438,8 +439,31 @@ module JSON
         end
       end
     end
-    
-    
+
+    # Validate the dependencies of a property
+    def validate_valueDependencies(current_schema, data, fragments)
+      if data.is_a?(Hash)
+        current_schema.schema['valueDependencies'].each do |property,dependency_values|
+          if data.has_key?(property) && (dependency_value = dependency_values[data[property]])
+            if dependency_value.is_a?(String) && !data.has_key?(dependency_value)
+              message = "The property '#{build_fragment(fragments)}' has a property '#{property}' value '#{data[property]}' that depends on a missing property '#{dependency_value}'"
+              raise ValidationError.new(message, fragments, current_schema)
+            elsif dependency_value.is_a?(Array)
+              dependency_value.each do |value|
+                if !data.has_key?(value)
+                  message = "The property '#{build_fragment(fragments)}' has a property '#{property}' value '#{data[property]}' that depends on a missing property '#{value}'"
+                  raise ValidationError.new(message, fragments, current_schema)
+                end
+              end
+            else
+              schema = JSON::Schema.new(dependency_value,current_schema.uri)
+              validate_schema(schema, data, fragments)
+            end
+          end
+        end
+      end
+    end
+
     # Validate extensions of other schemas
     def validate_extends(current_schema, data, fragments)
       schemas = current_schema.schema['extends']
@@ -449,8 +473,8 @@ module JSON
         validate_schema(schema, data, fragments)
       end
     end
-    
-    
+
+
     # Validate schema references
     def validate_ref(current_schema, data, fragments)
       temp_uri = URI.parse(current_schema.schema['$ref'])
@@ -470,7 +494,7 @@ module JSON
         temp_uri.fragment = current_schema.schema['$ref'].split("#")[1]
       end
       temp_uri.fragment = "" if temp_uri.fragment.nil?
-      
+
       # Grab the parent schema from the schema list
       schema_key = temp_uri.to_s.split("#")[0]
       ref_schema = Validator.schemas[schema_key]
@@ -493,7 +517,7 @@ module JSON
             end
           end
         end
-        
+
         # We have the schema finally, build it and validate!
         schema = JSON::Schema.new(target_schema,temp_uri)
         validate_schema(schema, data, fragments)
@@ -501,13 +525,13 @@ module JSON
         raise ValidationError.new("The referenced schema '#{temp_uri.to_s}' cannot be found", fragments, current_schema)
       end
     end
-    
+
 
     def build_fragment(fragments)
       "#/#{fragments.join('/')}"
     end
 
-    
+
     def load_ref_schema(parent_schema,ref)
       uri = URI.parse(ref)
       if uri.relative?
@@ -522,7 +546,7 @@ module JSON
         end
         uri.fragment = nil
       end
-      
+
       if Validator.schemas[uri.to_s].nil?
         begin
           schema = JSON::Schema.new(JSON.parse(open(uri.to_s).read), uri)
@@ -537,28 +561,28 @@ module JSON
         end
       end
     end
-    
-    
+
+
     # Build all schemas with IDs, mapping out the namespace
-    def build_schemas(parent_schema)    
+    def build_schemas(parent_schema)
       # Check for schemas in union types
       ["type", "disallow"].each do |key|
         if parent_schema.schema[key] && parent_schema.schema[key].is_a?(Array)
           parent_schema.schema[key].each_with_index do |type,i|
-            if type.is_a?(Hash) 
+            if type.is_a?(Hash)
               handle_schema(parent_schema, type)
             end
           end
         end
       end
-        
+
       # All properties are schemas
       if parent_schema.schema["properties"]
         parent_schema.schema["properties"].each do |k,v|
           handle_schema(parent_schema, v)
         end
       end
-      
+
       # Items are always schemas
       if parent_schema.schema["items"]
         items = parent_schema.schema["items"].clone
@@ -571,16 +595,16 @@ module JSON
           handle_schema(parent_schema, item)
         end
       end
-      
+
       # Each of these might be schemas
       ["additionalProperties", "additionalItems", "dependencies", "extends"].each do |key|
-        if parent_schema.schema[key].is_a?(Hash) 
+        if parent_schema.schema[key].is_a?(Hash)
           handle_schema(parent_schema, parent_schema.schema[key])
         end
       end
-      
+
     end
-    
+
     # Either load a reference schema or create a new schema
     def handle_schema(parent_schema, obj)
       if obj['$ref']
@@ -594,41 +618,41 @@ module JSON
          build_schemas(schema)
        end
     end
-        
-    
+
+
     class << self
       def validate(schema, data,opts={})
         validator = JSON::Validator.new(schema, data, opts)
         validator.validate
       end
-    
+
       def validate2(schema, data,opts={})
         validator = JSON::Validator.new(schema, data, opts)
         validator.validate2
       end
-      
+
       def clear_cache
         @@schemas = {} if @@cache_schemas == false
       end
-      
+
       def schemas
         @@schemas
       end
-      
+
       def add_schema(schema)
         @@schemas[schema.uri.to_s] = schema if @@schemas[schema.uri.to_s].nil?
       end
-      
+
       def cache_schemas=(val)
         @@cache_schemas = val == true ? true : false
       end
-        
+
     end
-  
-    
-    
+
+
+
     private
-    
+
     def initialize_schema(schema)
       if schema.is_a?(String)
         begin
@@ -662,18 +686,18 @@ module JSON
       else
         raise "Invalid schema - must be either a string or a hash"
       end
-      
+
       if @options[:list]
         inter_json = {:type => "array", :items => { "$ref" => schema.uri.to_s }}.to_json
         wrapper_schema = JSON::Schema.new(JSON.parse(inter_json),URI.parse("file://#{Dir.pwd}/#{Digest::SHA1.hexdigest(inter_json)}"))
         build_schemas(schema)
         schema = wrapper_schema
-      end      
-      
+      end
+
       schema
     end
-    
-    
+
+
     def initialize_data(data)
       # Parse the data, if any
       if data.is_a?(String)
@@ -693,6 +717,6 @@ module JSON
       end
       data
     end
-    
+
   end
 end

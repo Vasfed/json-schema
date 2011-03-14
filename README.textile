@@ -83,6 +83,27 @@ The following core schema definitions are currently implemented:
 * $ref (this implementation only follows slash-delimited fragment resolution)
 
 
+h2. Extensions to standard
+
+Also this version adds extended validation 'valueDependencies' - validates against certain values of fields.
+
+Example:
+<pre>
+  schema = {
+    "type" => "object",
+    "properties" => {
+      "status" => { "enum" => ["a", "b", "c"]}
+    },
+    "valueDependencies" => {
+      "status" => {
+        "a" => "status_a"
+      }
+    }
+  }
+  data = {"status" => "a", "status_a" => 1}
+</pre>
+here presence of attribute 'status_a' is validated.
+
 h2. Not implemented
 
 The following core schema definitions are not implemented:
