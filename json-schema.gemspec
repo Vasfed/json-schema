@@ -6,7 +6,7 @@ version = "#{version_yaml['major']}.#{version_yaml['minor']}.#{version_yaml['pat
 gem_name = "json-schema"
 
 spec = Gem::Specification.new do |s|
-  s.name = "json-schema"
+  s.name = gem_name
   s.version = version
   s.authors = ["Kenny Hoxworth"]
   s.email = "hoxworth@gmail.com"
@@ -16,6 +16,5 @@ spec = Gem::Specification.new do |s|
   s.require_path = "lib"
   s.test_files = Dir.glob("{test}/**/test*")
   s.has_rdoc = true
-  s.add_dependency('json')
   s.extra_rdoc_files = ["README.textile"]
 end
