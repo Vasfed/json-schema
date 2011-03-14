@@ -769,5 +769,9 @@ class JSONSchemaTest < Test::Unit::TestCase
 
   end
 
+  def test_metaschema
+    assert JSON::Validator.validate(JSON::Schema::metaschema, JSON::Schema::metaschema)
+  end
+
 end
 
