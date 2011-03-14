@@ -7,7 +7,7 @@ gem_name = "json-schema"
 
 spec = Gem::Specification.new do |s|
   s.name = "json-schema"
-  s.version = "0.1.11"
+  s.version = version
   s.authors = ["Kenny Hoxworth"]
   s.email = "hoxworth@gmail.com"
   s.homepage = "http://github.com/hoxworth/json-schema/tree/master"
