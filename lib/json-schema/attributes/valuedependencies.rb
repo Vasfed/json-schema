@@ -4,8 +4,8 @@ module JSON
 
       def self.validate(current_schema, data, fragments, validator, options = {})
         if data.is_a?(Hash)
-          current_schema.schema['valueDependencies'].each do |property,dependency_values|
-            if data.has_key?(property) && (dependency_value = dependency_values[data[property]])
+          current_schema.schema['valueDependencies'].each do |property,dependency|
+            if data.has_key?(property) && (dependency_value = dependency[data[property]])
               if dependency_value.is_a?(String) && !data.has_key?(dependency_value)
                 message = "The property '#{build_fragment(fragments)}' has a property '#{property}' value '#{data[property]}' that depends on a missing property '#{dependency_value}'"
                 raise ValidationError.new(message, fragments, current_schema)
@@ -17,7 +17,8 @@ module JSON
                   end
                 end
               else
-                schema = JSON::Schema.new(dependency_value,current_schema.uri,validator)
+                #dependency is a schema
+                schema = JSON::Schema.new(dependency,current_schema.uri,validator)
                 schema.validate(data, fragments)
               end
             end
