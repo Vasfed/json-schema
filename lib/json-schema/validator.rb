@@ -57,6 +57,7 @@ module JSON
 
       def validate(current_schema, data, fragments)
         current_schema.schema.each do |attr_name,attribute|
+          
           if @attributes.has_key?(attr_name.to_s)
             @attributes[attr_name.to_s].validate(current_schema, data, fragments, self)
           end
@@ -72,7 +73,8 @@ module JSON
     @@schemas = {}
     @@cache_schemas = false
     @@default_opts = {
-      :list => false
+      :list => false,
+      :version => nil
     }
 
     @@validators = {}
@@ -82,6 +84,23 @@ module JSON
 
     def initialize(schema_data, data, opts={})
       @options = @@default_opts.clone.merge(opts)
+      
+      # I'm not a fan of this, but it's quick and dirty to get it working for now
+      if @options[:version]
+        @options[:version] = case @options[:version].to_s
+        when "draft3"
+          "draft-03"
+        when "draft2"
+          "draft-02"
+        when "draft1"
+          "draft-01"
+        else
+          raise JSON::Schema::SchemaError.new("The requested JSON schema version is not supported")
+        end
+        u = URI.parse("http://json-schema.org/#{@options[:version]}/schema#")
+        validator = JSON::Validator.validators["#{u.scheme}://#{u.host}#{u.path}"]
+        @options[:version] = validator
+      end
       @base_schema = initialize_schema(schema_data)
       @data = initialize_data(data)
       build_schemas(@base_schema)
@@ -123,13 +142,13 @@ module JSON
 
       if Validator.schemas[uri.to_s].nil?
         begin
-          schema = JSON::Schema.new(JSON::Validator.parse(open(uri.to_s).read), uri)
+          schema = JSON::Schema.new(JSON::Validator.parse(open(uri.to_s).read), uri, @options[:version])
           Validator.add_schema(schema)
           build_schemas(schema)
         rescue JSON::ParserError
           # Don't rescue this error, we want JSON formatting issues to bubble up
           raise $!
-        rescue
+        rescue Exception
           # Failures will occur when this URI cannot be referenced yet. Don't worry about it,
           # the proper error will fall out if the ref isn't ever defined
         end
@@ -185,7 +204,7 @@ module JSON
          load_ref_schema(parent_schema, obj['$ref'])
        else
          schema_uri = parent_schema.uri.clone
-         schema = JSON::Schema.new(obj,schema_uri)
+         schema = JSON::Schema.new(obj,schema_uri,@options[:version])
          if obj['id']
            Validator.add_schema(schema)
          end
@@ -291,12 +310,12 @@ module JSON
       if schema.is_a?(String)
         begin
           # Build a fake URI for this
-          schema_uri = URI.parse("file://#{Dir.pwd}/#{Digest::SHA1.hexdigest(schema)}")
+          schema_uri = URI.parse(UUID.create_v5(schema,UUID::Nil).to_s)
           schema = JSON::Validator.parse(schema)
           if @options[:list]
             schema = {"type" => "array", "items" => schema}
           end
-          schema = JSON::Schema.new(schema,schema_uri)
+          schema = JSON::Schema.new(schema,schema_uri,@options[:version])
           Validator.add_schema(schema)
         rescue
           # Build a uri for it
@@ -314,7 +333,7 @@ module JSON
             if @options[:list]
               schema = {"type" => "array", "items" => schema}
             end
-            schema = JSON::Schema.new(schema,schema_uri)
+            schema = JSON::Schema.new(schema,schema_uri,@options[:version])
             Validator.add_schema(schema)
           else
             schema = Validator.schemas[schema_uri.to_s]
@@ -324,8 +343,8 @@ module JSON
         if @options[:list]
           schema = {"type" => "array", "items" => schema}
         end
-        schema_uri = URI.parse("file://#{Dir.pwd}/#{Digest::SHA1.hexdigest(schema.inspect)}")
-        schema = JSON::Schema.new(schema,schema_uri)
+        schema_uri = URI.parse(UUID.create_v5(schema.inspect,UUID::Nil).to_s)
+        schema = JSON::Schema.new(schema,schema_uri,@options[:version])
         Validator.add_schema(schema)
       else
         raise "Invalid schema - must be either a string or a hash"
