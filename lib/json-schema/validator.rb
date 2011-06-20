@@ -291,13 +291,21 @@ module JSON
       end
     end
 
-    if Gem.available?('json')
+    if begin
+        Gem::Specification::find_by_name('json')
+      rescue
+        Gem.available?('json')
+      end
       require 'json'
       @@available_json_backends << 'json'
       @@json_backend = 'json'
     end
 
-    if Gem.available?('yajl-ruby')
+    if begin
+        Gem::Specification::find_by_name('yajl-ruby')
+      rescue
+        Gem.available?('yajl-ruby')
+      end
       require 'yajl'
       @@available_json_backends << 'yajl'
       @@json_backend = 'yajl'
@@ -306,7 +314,11 @@ module JSON
 
     private
 
-    if Gem.available?('uuidtools')
+    if begin
+        Gem::Specification::find_by_name('uuidtools')
+      rescue
+        Gem.available?('uuidtools')
+      end
       require 'uuidtools'
       @@fake_uri_generator = lambda{|s| UUIDTools::UUID.sha1_create(UUIDTools::UUID_URL_NAMESPACE, s).to_s }
     else
