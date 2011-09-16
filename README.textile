@@ -18,7 +18,7 @@ From the git repo:
 
 <pre>
 $ gem build json-schema.gemspec
-$ gem install json-schema-0.9.2.gem
+$ gem install json-schema-0.9.10.gem
 </pre>
 
 
@@ -93,6 +93,26 @@ rescue JSON::Schema::ValidationError
 end
 </pre>
 
+h3. Validate a JSON object against a JSON schema object, while also validating the schema itself
+
+<pre>
+require 'rubygems'
+require 'json-schema'
+
+schema = {
+  "type" => "object",
+  "properties" => {
+    "a" => {"type" => "integer", "required" => "true"}  # This will fail schema validation!
+  }
+}
+
+data = {
+  "a" => 5
+}
+
+JSON::Validator.validate(schema, data, :validate_schema => true)
+</pre>
+
 h3. Validate an object against a JSON Schema Draft 2 schema
 
 <pre>
@@ -114,7 +134,7 @@ JSON::Validator.validate(schema, data, :version => :draft2)
 </pre>
 
 
-h3. Extend an existing schema and validating against it
+h3. Extend an existing schema and validate against it
 
 For this example, we are going to extend the "JSON Schema Draft 3":http://tools.ietf.org/html/draft-zyp-json-schema-03 specification by adding a 'bitwise-and' property for validation.
 

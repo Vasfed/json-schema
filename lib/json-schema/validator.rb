@@ -74,7 +74,8 @@ module JSON
     @@cache_schemas = false
     @@default_opts = {
       :list => false,
-      :version => nil
+      :version => nil,
+      :validate_schema => false
     }
 
     @@validators = {}
@@ -86,6 +87,7 @@ module JSON
       @options = @@default_opts.clone.merge(opts)
 
       # I'm not a fan of this, but it's quick and dirty to get it working for now
+      version_string = "draft-03"
       if @options[:version]
         @options[:version] = case @options[:version].to_s
         when "draft3"
@@ -97,10 +99,23 @@ module JSON
         else
           raise JSON::Schema::SchemaError.new("The requested JSON schema version is not supported")
         end
+        version_string = @options[:version]
         u = URI.parse("http://json-schema.org/#{@options[:version]}/schema#")
         validator = JSON::Validator.validators["#{u.scheme}://#{u.host}#{u.path}"]
         @options[:version] = validator
       end
+
+      # validate the schema, if requested
+      if @options[:validate_schema]
+        begin
+          metaschema_file = File.join(Pathname.new(File.dirname(__FILE__)).parent.parent, "resources", "#{version_string}.json").to_s
+          meta_validator = JSON::Validator.new(metaschema_file, schema_data)
+          meta_validator.validate
+        rescue JSON::Schema::ValidationError, JSON::Schema::SchemaError
+          raise $!
+        end
+      end
+
       @base_schema = initialize_schema(schema_data)
       @data = initialize_data(data)
       build_schemas(@base_schema)
@@ -135,9 +150,9 @@ module JSON
         if path && path[0,1] == '/'
           uri.path = Pathname.new(path).cleanpath.to_s
         else
-          uri.path = (Pathname.new(parent_schema.uri.path).parent + path).cleanpath.to_s
+          uri = parent_schema.uri.merge(path)
         end
-        uri.fragment = nil
+        uri.fragment = ''
       end
 
       if Validator.schemas[uri.to_s].nil?
@@ -158,6 +173,11 @@ module JSON
 
     # Build all schemas with IDs, mapping out the namespace
     def build_schemas(parent_schema)
+      # Build ref schemas if they exist
+      if parent_schema.schema["$ref"]
+        load_ref_schema(parent_schema, parent_schema.schema["$ref"])
+      end
+
       # Check for schemas in union types
       ["type", "disallow"].each do |key|
         if parent_schema.schema[key] && parent_schema.schema[key].is_a?(Array)
@@ -200,16 +220,12 @@ module JSON
 
     # Either load a reference schema or create a new schema
     def handle_schema(parent_schema, obj)
-      if obj['$ref']
-         load_ref_schema(parent_schema, obj['$ref'])
-       else
-         schema_uri = parent_schema.uri.clone
-         schema = JSON::Schema.new(obj,schema_uri,@options[:version])
-         if obj['id']
-           Validator.add_schema(schema)
-         end
-         build_schemas(schema)
-       end
+      schema_uri = parent_schema.uri.clone
+      schema = JSON::Schema.new(obj,schema_uri,@options[:version])
+      if obj['id']
+        Validator.add_schema(schema)
+      end
+      build_schemas(schema)
     end
 
 
@@ -227,6 +243,7 @@ module JSON
       def validate!(schema, data,opts={})
         validator = JSON::Validator.new(schema, data, opts)
         validator.validate
+        return true
       end
 
       alias_method 'validate2', 'validate!'
@@ -270,7 +287,7 @@ module JSON
 
       def json_backend=(backend)
         backend = backend.to_s
-        if @@available_json_backend.include?(backend)
+        if @@available_json_backends.include?(backend)
           @@json_backend = backend
         else
           raise JSON::Schema::JsonParseError.new("The JSON backend '#{backend}' could not be found.")
@@ -291,8 +308,11 @@ module JSON
       end
     end
 
+
     if begin
         Gem::Specification::find_by_name('json')
+      rescue Gem::LoadError
+        false
       rescue
         Gem.available?('json')
       end
@@ -301,8 +321,11 @@ module JSON
       @@json_backend = 'json'
     end
 
+
     if begin
         Gem::Specification::find_by_name('yajl-ruby')
+      rescue Gem::LoadError
+        false
       rescue
         Gem.available?('yajl-ruby')
       end
@@ -316,6 +339,8 @@ module JSON
 
     if begin
         Gem::Specification::find_by_name('uuidtools')
+      rescue Gem::LoadError
+        false
       rescue
         Gem.available?('uuidtools')
       end
@@ -323,7 +348,7 @@ module JSON
       @@fake_uri_generator = lambda{|s| UUIDTools::UUID.sha1_create(UUIDTools::UUID_URL_NAMESPACE, s).to_s }
     else
       require 'uri/uuid'
-      @@fake_uri_generator = lambda{|s| UUID.create_v5(s,UUID::Nil).to_s }
+      @@fake_uri_generator = lambda{|s| JSON::Util::UUID.create_v5(s,JSON::Util::UUID::Nil).to_s }
     end
 
     def fake_uri schema
